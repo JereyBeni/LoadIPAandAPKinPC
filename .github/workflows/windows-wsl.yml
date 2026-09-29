@@ -1,7 +1,7 @@
 name: Windows (WSL)
 
 # Primary: native MinGW via MSYS2 on windows-latest.
-# Optional WSL job only on workflow_dispatch or commit message [wsl].
+# Optional WSL stub job only on workflow_dispatch.
 on:
   push:
     branches: [main, master]
@@ -108,17 +108,20 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Placeholder only. Real Windows artifact is MinGW above.
+  # Runs only when you click Run workflow (workflow_dispatch).
   build-wsl:
     name: Build (Windows WSL2 / Ubuntu)
     runs-on: windows-latest
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[wsl]')
+    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: WSL note
-        shell: powershell
+        shell: pwsh
         run: |
-          Write-Host "Optional WSL job — primary Windows zip comes from the MinGW job."
-          Write-Host "Trigger with workflow_dispatch or commit message containing [wsl]."
+          Write-Host 'Optional WSL job.'
+          Write-Host 'Primary Windows zip comes from the MinGW job.'
+          Write-Host 'Trigger this job only via Actions > Run workflow.'
