@@ -1,7 +1,7 @@
 name: Windows (WSL)
 
-# Primary: native MinGW via MSYS2 on windows-latest (reliable CI).
-# Optional WSL2 job: only on workflow_dispatch or commit message containing [wsl].
+# Primary: native MinGW via MSYS2 on windows-latest.
+# Optional WSL job only on workflow_dispatch or commit message [wsl].
 on:
   push:
     branches: [main, master]
@@ -47,55 +47,64 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j$(nproc)
 
-      - name: Locate binary
+      - name: Locate binary + smoke test
         id: bin
-        shell: bash
         run: |
           set -e
-          BIN=""
-          if [ -f build/loadipaapk.exe ]; then BIN="build/loadipaapk.exe"
-          elif [ -f build/loadipaapk ]; then BIN="build/loadipaapk"
+          if [ -f build/loadipaapk.exe ]; then
+            BIN="build/loadipaapk.exe"
+          elif [ -f build/loadipaapk ]; then
+            BIN="build/loadipaapk"
           else
-            echo "Binary not found"; find build -type f | head -50; exit 1
+            echo "Binary not found"
+            find build -type f | head -50
+            exit 1
           fi
-          echo "path=$BIN" >> "$GITHUB_OUTPUT"
           echo "Found: $BIN"
-
-      - name: Smoke test (CLI help)
-        shell: bash
-        run: |
-          BIN="${{ steps.bin.outputs.path }}"
           "./$BIN" help || "./$BIN" --help || true
+          echo "path=$BIN" >> "$GITHUB_OUTPUT"
 
-      - name: Pack zip
-        shell: bash
+      - name: Pack zip (MSYS2 zip)
         run: |
           set -e
           SHORT="${GITHUB_SHA:0:7}"
           OUT_DIR="dist/LoadIPAandAPKinPC-windows-x64"
           mkdir -p "$OUT_DIR"
+
           BIN="${{ steps.bin.outputs.path }}"
+          if [ -z "$BIN" ]; then
+            if [ -f build/loadipaapk.exe ]; then BIN="build/loadipaapk.exe"
+            else BIN="build/loadipaapk"; fi
+          fi
+
           cp "$BIN" "$OUT_DIR/"
-          UCRT="/ucrt64/bin"
-          for dll in SDL2.dll zlib1.dll libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
-            if [ -f "$UCRT/$dll" ]; then cp "$UCRT/$dll" "$OUT_DIR/"; fi
+
+          for dll in /ucrt64/bin/SDL2.dll /ucrt64/bin/zlib1.dll \
+                     /ucrt64/bin/libstdc++-6.dll /ucrt64/bin/libgcc_s_seh-1.dll \
+                     /ucrt64/bin/libwinpthread-1.dll; do
+            if [ -f "$dll" ]; then cp "$dll" "$OUT_DIR/"; fi
           done
+
           cp README.md "$OUT_DIR/" 2>/dev/null || true
-          echo "LoadIPAandAPKinPC Windows x64 (MinGW/UCRT64)" > "$OUT_DIR/BUILD_INFO.txt"
-          echo "commit: $GITHUB_SHA" >> "$OUT_DIR/BUILD_INFO.txt"
-          echo "ref: $GITHUB_REF" >> "$OUT_DIR/BUILD_INFO.txt"
-          echo "runner: windows-latest + MSYS2 UCRT64" >> "$OUT_DIR/BUILD_INFO.txt"
-          echo "note: WSL is for local Windows dev; CI primary build is native MinGW." >> "$OUT_DIR/BUILD_INFO.txt"
-          mkdir -p dist
+          {
+            echo "LoadIPAandAPKinPC Windows x64 (MinGW/UCRT64)"
+            echo "commit: $GITHUB_SHA"
+            echo "ref: $GITHUB_REF"
+            echo "runner: windows-latest + MSYS2 UCRT64"
+          } > "$OUT_DIR/BUILD_INFO.txt"
+
           cd dist
           zip -r "LoadIPAandAPKinPC-windows-x64-${SHORT}.zip" "LoadIPAandAPKinPC-windows-x64"
           ls -la
+          cp "LoadIPAandAPKinPC-windows-x64-${SHORT}.zip" "LoadIPAandAPKinPC-windows-x64.zip"
 
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: LoadIPAandAPKinPC-windows-x64
-          path: dist/LoadIPAandAPKinPC-windows-x64-*.zip
+          path: |
+            dist/LoadIPAandAPKinPC-windows-x64-*.zip
+            dist/LoadIPAandAPKinPC-windows-x64.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -111,5 +120,5 @@ jobs:
       - name: WSL note
         shell: powershell
         run: |
-          Write-Host "Optional WSL job: enable via workflow_dispatch or commit message [wsl]"
-          Write-Host "Primary Windows artifact comes from the MinGW job above."
+          Write-Host "Optional WSL job — primary Windows zip comes from the MinGW job."
+          Write-Host "Trigger with workflow_dispatch or commit message containing [wsl]."
