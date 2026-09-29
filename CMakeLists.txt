@@ -41,8 +41,16 @@ target_include_directories(loadipaapk PRIVATE
     ${SDL2_INCLUDE_DIRS}
 )
 
+# Prefer imported SDL2 target (MSYS2 / modern CMake), else classic variables
+if(TARGET SDL2::SDL2)
+    target_link_libraries(loadipaapk PRIVATE SDL2::SDL2)
+elseif(TARGET SDL2::SDL2-static)
+    target_link_libraries(loadipaapk PRIVATE SDL2::SDL2-static)
+else()
+    target_link_libraries(loadipaapk PRIVATE ${SDL2_LIBRARIES})
+endif()
+
 target_link_libraries(loadipaapk PRIVATE
-    ${SDL2_LIBRARIES}
     OpenGL::GL
     ZLIB::ZLIB
     Threads::Threads

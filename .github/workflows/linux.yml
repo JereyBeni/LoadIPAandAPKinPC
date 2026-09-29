@@ -1,0 +1,69 @@
+name: Linux
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (Linux x64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential \
+            cmake \
+            libsdl2-dev \
+            libgl1-mesa-dev \
+            zlib1g-dev \
+            pkg-config
+
+      - name: Configure
+        run: |
+          mkdir -p build
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build
+        run: cmake --build build --config Release -j$(nproc)
+
+      - name: Smoke test (CLI help)
+        run: |
+          chmod +x build/loadipaapk || true
+          ./build/loadipaapk help || ./build/loadipaapk --help || true
+
+      - name: Pack zip
+        run: |
+          VERSION="${{ github.sha }}"
+          SHORT="${VERSION:0:7}"
+          OUT_DIR="dist/LoadIPAandAPKinPC-linux-x64"
+          mkdir -p "$OUT_DIR"
+          cp build/loadipaapk "$OUT_DIR/"
+          cp README.md "$OUT_DIR/" 2>/dev/null || true
+          cp CMakeLists.txt "$OUT_DIR/" 2>/dev/null || true
+          echo "LoadIPAandAPKinPC Linux x64" > "$OUT_DIR/BUILD_INFO.txt"
+          echo "commit: ${{ github.sha }}" >> "$OUT_DIR/BUILD_INFO.txt"
+          echo "ref: ${{ github.ref }}" >> "$OUT_DIR/BUILD_INFO.txt"
+          echo "runner: ubuntu-latest" >> "$OUT_DIR/BUILD_INFO.txt"
+          echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$OUT_DIR/BUILD_INFO.txt"
+          cd dist
+          zip -r "LoadIPAandAPKinPC-linux-x64-${SHORT}.zip" "LoadIPAandAPKinPC-linux-x64"
+          ls -la
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LoadIPAandAPKinPC-linux-x64
+          path: dist/LoadIPAandAPKinPC-linux-x64-*.zip
+          if-no-files-found: error
+          retention-days: 30
